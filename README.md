@@ -1,201 +1,112 @@
-# 🤖 AI20K Agent Template
+# VinCar AI
 
-Template chính thức cho học viên **VinUni AI20K Build Phase** — cung cấp sẵn cấu trúc dự án, code mẫu, và hướng dẫn kỹ thuật chi tiết để xây dựng AI Agent đạt điểm cao (35+/50).
+Ứng dụng tư vấn xe VinFast qua hội thoại, kết hợp danh mục xe, so sánh thông số, tính chi phí sở hữu, yêu cầu báo giá và đặt lịch lái thử. Backend dùng FastAPI và LangGraph, frontend dùng React, TypeScript và Vite.
 
-> 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
+![Luồng tư vấn xe trong bản demo](docs/GATE_2/assets/screenshots/tc01_car_recommendation.png)
 
-## 🎯 Template này dùng để làm gì?
+## Chức năng
 
-Khi tham gia AI20K Build Phase, mỗi đội cần xây dựng một AI Agent hoàn chỉnh — từ kiến trúc, code, test, đến deploy. Thay vì bắt đầu từ con số không, template này cung cấp:
+- Khám phá nhu cầu, lọc xe theo tiêu chí và so sánh xe trong hội thoại.
+- Truy xuất danh mục bằng SQL và thông tin bổ sung qua lớp RAG.
+- Phản hồi chat theo luồng SSE và lưu trạng thái hội thoại.
+- Tính TCO, yêu cầu báo giá, lịch lái thử và các màn hình quản lý khách hàng.
 
-- **Cấu trúc thư mục chuẩn** — đã được thiết kế theo best practices (separation of concerns)
-- **Code mẫu** cho các phần cốt lõi: LangGraph agent, FastAPI API, config, schemas
-- **Docker + CI/CD sẵn** — Dockerfile multi-stage, GitHub Actions workflow
-- **Hướng dẫn kỹ thuật 10 chương** — từ clone template đến nộp bài Demo Day
-- **Checklist 10 deliverables** — đảm bảo không bỏ sót yêu cầu BTC
-- **AI Usage Logging tự động** — Pre-configured hooks cho Claude Code, Cursor, Codex, Gemini CLI, Antigravity, và GitHub Copilot
+## Kiến trúc
 
-## ⚡ Quick Start
+```mermaid
+flowchart LR
+    UI[React / Vite] --> API[FastAPI]
+    API --> Agent[LangGraph]
+    Agent --> LLM[LLM provider]
+    Agent --> Catalog[Catalog / RAG services]
+    Catalog --> DB[(Database)]
+    Agent --> Memory[(Redis / session memory)]
+    API --> CRM[Quotes / bookings / TCO]
+```
 
-### Bước 1: Fork hoặc Clone
+| Thư mục | Vai trò |
+|---|---|
+| `frontend/` | Giao diện khách hàng và quản trị |
+| `src/agents/` | Graph, node, prompt và trạng thái agent |
+| `src/api/` | API chat, danh mục, tài khoản và nghiệp vụ |
+| `src/services/` | Dữ liệu, tìm kiếm, bộ nhớ và LLM |
+| `scripts/` | Chuẩn bị và nạp dữ liệu |
+| `tests/` | Kiểm thử ứng dụng |
+| `eval/` | Dataset, bộ chạy đánh giá và báo cáo |
+
+## Cài đặt local
+
+Dùng Python 3.11 và Node.js 20, tương ứng các môi trường trong Dockerfile. Chạy từ thư mục gốc repo.
+
+```powershell
+git clone https://github.com/daotrunghieuk4/VinCar-AI.git
+cd VinCar-AI
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Trên Linux/macOS, kích hoạt bằng `source .venv/bin/activate` và sao chép cấu hình bằng `cp .env.example .env`.
+
+Điền cấu hình trong `.env` theo môi trường sử dụng.
+
+| Biến | Mục đích |
+|---|---|
+| `OPENAI_API_KEY`, `MODEL_NAME` | Provider và model cho hội thoại |
+| `DATABASE_URL` | Cơ sở dữ liệu SQLAlchemy async, mặc định local dùng SQLite |
+| `SUPABASE_URL`, `SUPABASE_KEY` | Kết nối các dịch vụ Supabase khi sử dụng |
+| `REDIS_URL` | Redis cho bộ nhớ/checkpoint |
+| `SECRET_KEY` | Khóa ký token riêng cho môi trường chạy |
+
+Khởi tạo dữ liệu và chạy backend với cấu hình trỏ vào database local dành cho demo. Script seed có ghi dữ liệu, vì vậy cần kiểm tra `DATABASE_URL` trước khi chạy.
+
+```powershell
+python -m scripts.seed_cars
+python -m uvicorn src.main:app --reload --port 8000
+```
+
+Script `seed_cars` cung cấp dữ liệu mẫu ô tô. Các nguồn dữ liệu khác và các bước nạp dữ liệu nằm trong `scripts/`; chức năng RAG đầy đủ cần catalog/vector database tương ứng.
+
+Mở terminal thứ hai cho frontend.
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Giao diện local ở `http://localhost:5173`, API docs ở `http://localhost:8000/docs` và health check ở `http://localhost:8000/health`. Frontend dùng `VITE_API_URL` khi cần thay địa chỉ API.
+
+## Docker
+
+Sau khi chuẩn bị `.env`, có thể chạy backend, frontend và Redis bằng cấu hình development.
 
 ```bash
-# Clone template
-git clone https://github.com/AI20K-Build-Cohort-2/starter-code-template.git team-YOUR_TEAM_NAME
-cd team-YOUR_TEAM_NAME
-
-# Xóa git history cũ và khởi tạo lại
-rm -rf .git
-git init
-git add .
-git commit -m "feat: khởi tạo dự án từ template"
+docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f docker-compose.dev.yml logs -f
 ```
 
-### Bước 2: Setup môi trường
+## Kiểm thử và đánh giá
 
 ```bash
-# Tạo virtual environment
-python3.11 -m venv .venv
-source .venv/bin/activate
-
-# Cài dependencies
-pip install -e ".[dev]"
-
-# Cấu hình API keys
-cp .env.example .env
-# Mở .env và thêm OPENAI_API_KEY của bạn
-# Đồng thời cập nhật AI_LOG_API_KEY bằng key riêng từ link mời của BTC
-# (giá trị trong .env.example chỉ là placeholder)
+python -m pytest tests -q
+python eval/run_benchmark.py --help
 ```
 
-### Bước 3: Cài AI Logging Hooks
+Frontend có các lệnh `npm run typecheck`, `npm run lint` và `npm run build`.
 
-```bash
-# Linux / macOS / Git Bash
-bash scripts/setup_hooks.sh
+Một báo cáo retrieval lưu trong repo ghi nhận kết quả sau trên 20 ca kiểm tra.
 
-# Windows PowerShell
-# powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
-```
+| Chỉ số | Giá trị |
+|---|---:|
+| Số ca được chấm | 20 |
+| Số ca lỗi | 0 |
+| Mean final vehicle recall | 1.00 |
+| Mean final chunk recall | 0.85 |
 
-Hooks tự động log mọi AI prompt khi dùng Claude Code, Cursor, Codex, Gemini CLI, Antigravity, hoặc GitHub Copilot. Không cần thao tác thủ công.
+Đây là kết quả đã lưu của bộ kiểm tra retrieval. Chất lượng phản hồi hội thoại phụ thuộc thêm vào model, prompt và dữ liệu tại thời điểm chạy. [Kết quả JSON](eval/reports/rag_retrieval_report.json) · [Hướng dẫn đánh giá](eval/README.md)
 
-### Bước 4: Chạy server
+## Phạm vi demo
 
-```bash
-# Chạy FastAPI backend
-uvicorn src.main:app --reload --port 8000
-
-# Mở Swagger UI
-# http://localhost:8000/docs
-```
-
-### Bước 5: Đọc hướng dẫn
-
-📖 Mở **[Technical Guidebook](https://phoenix.note.transformerlabs.ai/technical-book)** và làm theo từng chương.
-
-## 📁 Cấu trúc dự án
-
-```
-├── src/
-│   ├── agents/           # 🧠 LangGraph Agent
-│   │   ├── graph.py      #    State graph (nodes + edges)
-│   │   ├── state.py      #    State schema (TypedDict)
-│   │   ├── nodes/        #    Node functions
-│   │   └── tools/        #    Agent tools (@tool)
-│   ├── api/              # 🌐 FastAPI Backend
-│   │   └── routes.py     #    API endpoints
-│   ├── models/           # 📋 Pydantic schemas
-│   ├── services/         # 🔧 Business logic (LLM, etc.)
-│   ├── config.py         # ⚙️ Pydantic Settings
-│   └── main.py           # 🚀 App entry point
-├── tests/                # 🧪 pytest suite
-│   ├── test_agents/      #    Agent/graph tests
-│   └── test_api/         #    API endpoint tests
-├── scripts/              # 🔌 AI Logging Hooks
-│   ├── log_hook.py       #    Auto-log cho Claude/Cursor/Codex/Gemini/Copilot
-│   ├── log_antigravity.py#    Antigravity IDE prompt scanner
-│   ├── log_manual.py     #    Manual log cho ChatGPT / web tools
-│   ├── submit_log.py     #    Submit logs on git push
-│   └── setup_hooks.sh    #    One-time hook installer
-├── .claude/ .codex/ .cursor/ .gemini/  # Per-tool hook configs
-├── .agents/              # Antigravity rules + workflows
-├── .ai-log/              # 📊 AI usage logs (auto-generated)
-├── docs/
-│   ├── guide/            # 📖 Technical Guidebook (10 chapters)
-│   └── architecture_diagram.md
-├── eval/                 # 📊 Evaluation results
-├── presentation/         # 🎤 Demo Day slides
-├── .github/workflows/    # ⚡ CI/CD (GitHub Actions)
-├── .github/hooks/        # 🪝 Copilot hook config
-├── Dockerfile            # 🐳 Multi-stage build
-├── docker-compose.yml    # 🐙 Full stack orchestration
-└── README_boilerplate.md # 📝 README template cho đội của bạn
-```
-
-## 📚 Technical Guidebook — 10 Chương
-
-| Chương | Nội dung | Thời gian |
-|---------|----------|-----------|
-| 1 | Lời mở đầu — Mục tiêu, cách sử dụng | 15 phút |
-| 2 | Khởi tạo dự án — Clone, setup, git workflow | 4 giờ |
-| 3 | Thiết kế kiến trúc — 3-tier, diagrams, ADR | 6 giờ |
-| 4 | **LangGraph Agent** — State, nodes, edges, tools, RAG | 8 giờ |
-| 5 | FastAPI — Routes, validation, error handling, streaming | 6 giờ |
-| 6 | Giao diện — Next.js + Streamlit quickstart | 6 giờ |
-| 7 | DevOps — Docker, CI/CD, deploy, logging | 6 giờ |
-| 8 | Kiểm thử — Unit test, integration test, RAGAS | 4 giờ |
-| 9 | Demo Day — 10 deliverables, checklist, tips | 2 giờ |
-| 10 | Tài nguyên — Khóa học, docs, BMAD method | tham khảo |
-
-📖 **Đọc online:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-
-## 📋 10 Deliverables cho Demo Day
-
-| # | Deliverable | File vị trí | Template có sẵn |
-|---|-------------|-------------|:---:|
-| 1 | Source Code | `src/` | ✅ |
-| 2 | README.md | `README_boilerplate.md` → copy thành `README.md` | ✅ |
-| 3 | Architecture Diagram | `docs/architecture_diagram.md` | ✅ |
-| 4 | AI Logs | LangSmith (3 env vars) + Auto AI Usage Logging | ✅ |
-| 5 | Live URL | Deploy lên Render/Vercel | ⚡ CI/CD sẵn |
-| 6 | Video Demo | `presentation/` | 📝 |
-| 7 | Pitch Deck | `presentation/` | 📝 |
-| 8 | Development Journal | `JOURNAL.md` | ✅ |
-| 9 | Worklog | `WORKLOG.md` | ✅ |
-| 10 | Evaluation Evidence | `eval/` | 📝 |
-
-## 🛠 Tech Stack
-
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| AI Agent | LangGraph + LangChain | Latest |
-| Backend | FastAPI + Uvicorn | 0.100+ |
-| LLM | OpenAI GPT-4o-mini | API |
-| Frontend | Next.js / Streamlit | 14+ / 1.30+ |
-| Database | SQLite (dev) / PostgreSQL (prod) | — |
-| DevOps | Docker + GitHub Actions | — |
-| Testing | pytest + pytest-asyncio | 8+ |
-
-## 📊 AI Usage Logging
-
-Template đã tích hợp sẵn auto-logging hooks cho 6 AI tools:
-
-| Tool | Cơ chế | Config |
-|------|--------|--------|
-| Claude Code | `.claude/settings.json` hooks | Tự động |
-| Cursor | `.cursor/hooks.json` | Tự động |
-| OpenAI Codex CLI | `.codex/hooks.json` | Tự động |
-| Gemini CLI | `.gemini/settings.json` | Tự động |
-| GitHub Copilot | `.github/hooks/hooks.json` | Tự động |
-| Antigravity IDE | Pre-push scan transcript | Tự động trên `git push` |
-
-Tất cả prompts và tool calls được log vào `.ai-log/session.jsonl` và tự động submit lên grading server mỗi khi `git push`.
-
-**ChatGPT / web tools khác** — log thủ công:
-```bash
-bash scripts/_pyrun.sh scripts/log_manual.py --tool chatgpt --prompt "What you asked"
-```
-
-> ⚠️ Chạy `bash scripts/setup_hooks.sh` một lần sau khi clone để cài pre-push hook.
-
-## 📖 Đọc Technical Guidebook
-
-**Online (khuyến nghị):** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-
-Đăng nhập bằng GitHub (cùng account đã được BTC mời vào org `AI20K-Build-Cohort-2`)
-→ chọn tab **Technical Book** ở sidebar trái → đọc 10 chương + topic sections,
-có table of contents bên phải, hỗ trợ light/dark/cyberpunk theme.
-
-**Offline:** mọi chương đều ở thư mục `docs/guide/` trong template này — mở bằng
-bất kỳ markdown viewer/editor nào (VS Code, Obsidian, GitHub UI, …).
-
-## 🔗 Liên kết
-
-- 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-- 🏫 **AI20K Program:** VinUni AI20K Build Phase
-- 👨‍🏫 **Mentor:** Lê Văn Thể
-
-## 📄 License
-
-MIT — Sử dụng tự do cho mục đích giáo dục.
+Dữ liệu xe và thông tin trong báo cáo phản ánh snapshot của dự án. Cấu hình local có tài khoản seed và các giá trị mặc định phục vụ phát triển; khi triển khai cần cấu hình khóa riêng và kiểm tra chính sách tài khoản. Các báo cáo cũ được giữ trong repo để đối chiếu thí nghiệm.
