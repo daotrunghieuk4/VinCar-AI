@@ -4,6 +4,12 @@
 
 ![Luồng tư vấn xe trong bản demo](docs/GATE_2/assets/screenshots/tc01_car_recommendation.png)
 
+## Tổng quan
+
+VinCar AI tổ chức quá trình tư vấn mua xe thành một luồng hội thoại: tiếp nhận nhu cầu, tra cứu danh mục, giải thích lựa chọn và hỗ trợ các bước tiếp theo như so sánh, tính chi phí hoặc đăng ký lái thử. Dự án kết nối giao diện web với các công cụ dữ liệu và dịch vụ nghiệp vụ để người dùng có thể khám phá thông tin xe trong cùng một phiên làm việc.
+
+Phần agent được xây dựng bằng LangGraph, cho phép biểu diễn trạng thái và các bước xử lý của hội thoại. FastAPI cung cấp lớp API, còn React và TypeScript đảm nhiệm trải nghiệm tương tác trên trình duyệt. Các thành phần được tách theo vai trò để thuận tiện cho việc đọc mã, kiểm thử và mở rộng công cụ tư vấn.
+
 ## Chức năng
 
 - Khám phá nhu cầu, lọc xe theo tiêu chí và so sánh xe trong hội thoại.
@@ -33,6 +39,15 @@ flowchart LR
 | `scripts/` | Chuẩn bị và nạp dữ liệu |
 | `tests/` | Kiểm thử ứng dụng |
 | `eval/` | Dataset, bộ chạy đánh giá và báo cáo |
+
+## Luồng sử dụng
+
+1. Mở giao diện và nhập nhu cầu, chẳng hạn ngân sách, số chỗ hoặc mục đích sử dụng xe.
+2. Tiếp tục hội thoại để làm rõ tiêu chí và xem các lựa chọn trong danh mục.
+3. Yêu cầu so sánh thông số hoặc tìm thông tin bổ sung cho mẫu xe quan tâm.
+4. Sử dụng các chức năng chi phí sở hữu, báo giá hoặc lịch lái thử theo nhu cầu.
+
+Trong quá trình này, frontend nhận phản hồi theo luồng SSE. Backend điều phối agent và các dịch vụ tra cứu; dữ liệu có cấu trúc phục vụ truy vấn danh mục, còn lớp RAG hỗ trợ tìm nội dung liên quan tới câu hỏi.
 
 ## Cài đặt local
 
@@ -107,6 +122,26 @@ Một báo cáo retrieval lưu trong repo ghi nhận kết quả sau trên 20 ca
 
 Đây là kết quả đã lưu của bộ kiểm tra retrieval. Chất lượng phản hồi hội thoại phụ thuộc thêm vào model, prompt và dữ liệu tại thời điểm chạy. [Kết quả JSON](eval/reports/rag_retrieval_report.json) · [Hướng dẫn đánh giá](eval/README.md)
 
-## Phạm vi demo
+## Dữ liệu và cấu hình triển khai
 
-Dữ liệu xe và thông tin trong báo cáo phản ánh snapshot của dự án. Cấu hình local có tài khoản seed và các giá trị mặc định phục vụ phát triển; khi triển khai cần cấu hình khóa riêng và kiểm tra chính sách tài khoản. Các báo cáo cũ được giữ trong repo để đối chiếu thí nghiệm.
+Dữ liệu danh mục được khởi tạo qua script seed, giúp thiết lập một môi trường chạy thống nhất. Khi bổ sung hoặc cập nhật xe, cần đồng bộ dữ liệu danh mục và nội dung được lập chỉ mục để kết quả tra cứu phản ánh cùng một phiên bản dữ liệu.
+
+Môi trường phát triển sử dụng các tài khoản seed để thử nghiệm luồng nghiệp vụ. Với môi trường triển khai riêng, thiết lập khóa ký token, thông tin kết nối và chính sách tài khoản tương ứng. Quản lý khóa API qua biến môi trường và sử dụng database dành riêng cho từng môi trường.
+
+## Đọc và mở rộng mã nguồn
+
+- Bắt đầu từ `src/main.py` để tìm hiểu cách khởi tạo ứng dụng và đăng ký API.
+- Xem `src/agents/` để theo dõi trạng thái và các bước điều phối hội thoại.
+- Xem `src/services/` khi thay đổi cách truy xuất dữ liệu hoặc kết nối dịch vụ.
+- Dùng `tests/` và `eval/` để đối chiếu hành vi sau khi cập nhật prompt, công cụ hoặc danh mục.
+
+Khi báo cáo kết quả đánh giá, ghi kèm cấu hình model, phiên bản dữ liệu và bộ câu hỏi. Các báo cáo trong `eval/` cung cấp nguồn đối chiếu cho từng phép đo; chỉ số retrieval được diễn giải trong phạm vi bài kiểm tra truy xuất tương ứng.
+
+## Xử lý cấu hình thường gặp
+
+| Hiện tượng | Nội dung cần kiểm tra |
+|---|---|
+| Frontend không gọi được backend | Backend đang chạy, cổng API và `VITE_API_URL` |
+| Danh mục chưa có dữ liệu | `DATABASE_URL` và bước chạy script seed |
+| Dịch vụ hội thoại báo lỗi provider | Khóa API, tên model và khả năng kết nối provider |
+| Không khôi phục được trạng thái hội thoại | Cấu hình Redis và dịch vụ bộ nhớ đang sử dụng |
